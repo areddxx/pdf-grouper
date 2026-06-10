@@ -72,30 +72,34 @@ Scanned/image-only PDFs return no text and are flagged **"no text — needs OCR"
 
 ## Deploy
 
+The app builds with `base: '/pdf-grouper/'` by default (matches GitHub Pages). For any host that serves at the root (Cloudflare Pages, Vercel, Netlify, custom domain), set `BASE_PATH=/` before building.
+
+### GitHub Pages (automatic)
+
+A workflow at `.github/workflows/pages.yml` builds and deploys on every push to `main`. One-time setup: in the repo, **Settings → Pages → Build and deployment → Source: GitHub Actions**. The app will be served at `https://<user>.github.io/pdf-grouper/`.
+
 ### Cloudflare Pages
 
 ```bash
-pnpm build
-# Drag-and-drop the `dist/` folder into the Cloudflare Pages dashboard,
-# or via Wrangler:
+BASE_PATH=/ pnpm build
 npx wrangler pages deploy dist --project-name=pdf-grouper
 ```
 
 Build settings if connecting a Git repo:
-- Build command: `pnpm build`
+- Build command: `BASE_PATH=/ pnpm build`
 - Build output directory: `dist`
-- Node version: 20+ (set `NODE_VERSION=20` in env vars if needed)
+- Node version: 20+ (set `NODE_VERSION=20` in env vars)
 
 ### Vercel
 
 ```bash
-pnpm build
+BASE_PATH=/ pnpm build
 npx vercel deploy --prod
 ```
 
-Or import the repo on vercel.com and accept the auto-detected Vite settings.
+Or import the repo on vercel.com, set `BASE_PATH=/` in the env vars, and accept the auto-detected Vite settings.
 
-Both targets serve the app as a fully static SPA — no server runtime, no environment variables, no backend.
+All targets serve the app as a fully static SPA — no server runtime, no backend.
 
 ## Privacy
 

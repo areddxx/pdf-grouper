@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
 export default defineConfig({
+  // GitHub Pages serves at /<repo>/ — set BASE_PATH=/ for root-served hosts (Cloudflare/Vercel).
+  base: process.env.BASE_PATH ?? '/pdf-grouper/',
   plugins: [react()],
   resolve: {
     alias: {
