@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+*.tsbuildinfo
+*.local
+.vite
+.DS_Store
+samples/*.pdf
+!samples/.gitkeep
+.env
+.env.local
+.claude/settings.local.json
