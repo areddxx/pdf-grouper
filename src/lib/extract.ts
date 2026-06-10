@@ -11,6 +11,53 @@ const ADDRESS_RE = new RegExp(
   'gi'
 );
 
+/** Context phrases preceding an address that strongly suggest it IS the property. */
+const PROPERTY_LABELS = [
+  'property address',
+  'subject property',
+  'address of property',
+  'property located at',
+  'property is located',
+  'real property',
+  'subject premises',
+  'premises',
+  'legal description',
+  'property:',
+  're:',
+  'situated at',
+  'situated in',
+  'property',
+];
+
+/** Context phrases that mean an address is the OFFICE/BROKER/TITLE — never the property. */
+const NEGATIVE_LABELS = [
+  'broker',
+  'brokerage',
+  'office',
+  'title company',
+  'title agency',
+  'title insurance company',
+  'title insurer',
+  'lender',
+  'escrow agent',
+  'escrow company',
+  'settlement agent',
+  'closing agent',
+  'return to',
+  'mailing address',
+  'company address',
+  'attn:',
+  'attention:',
+  'prepared by',
+  'from:',
+  'remit to',
+  'pay to',
+  'underwriter',
+  'agent for',
+];
+
+const ADDRESS_CONTEXT_WINDOW = 80;
+
 const DATE_PATTERNS: RegExp[] = [
   /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/g,
   /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s*(\d{4})\b/gi,
@@ -54,12 +101,61 @@ export function detectDocType(titleRegion: string, filename: string): string {
   return '';
 }
 
-/** Detect the first plausible US-style street address. */
+interface AddressCandidate {
+  raw: string;
+  normLower: string;
+  index: number;
+  labelScore: number;
+}
+
+/**
+ * Detect the property street address from a block of text.
+ *
+ * Strategy:
+ *   1. Collect ALL address-shaped matches.
+ *   2. Score each by the labeled context in the ~80 chars BEFORE it:
+ *        +10 if a "property/subject/premises" label appears
+ *        -10 if a "broker/office/title/lender/escrow" label appears
+ *   3. Add a frequency bonus (capped at +5): an address that appears many
+ *      times in the doc is almost always the subject property, not the
+ *      letterhead office.
+ *   4. Pick the highest score; ties broken by earliest-in-document.
+ */
 export function detectAddress(bodyText: string): string {
+  const lower = bodyText.toLowerCase();
+  const candidates: AddressCandidate[] = [];
+
   ADDRESS_RE.lastIndex = 0;
-  const m = ADDRESS_RE.exec(bodyText);
-  if (!m) return '';
-  return normalizeAddress(m[1].replace(/\.$/, ''));
+  let m: RegExpExecArray | null;
+  while ((m = ADDRESS_RE.exec(bodyText)) !== null) {
+    const raw = m[1].replace(/\.$/, '');
+    const before = lower.slice(Math.max(0, m.index - ADDRESS_CONTEXT_WINDOW), m.index);
+
+    let labelScore = 0;
+    if (PROPERTY_LABELS.some((l) => before.includes(l))) labelScore += 10;
+    if (NEGATIVE_LABELS.some((l) => before.includes(l))) labelScore -= 10;
+
+    candidates.push({
+      raw,
+      normLower: normalizeAddress(raw).toLowerCase(),
+      index: m.index,
+      labelScore,
+    });
+  }
+
+  if (candidates.length === 0) return '';
+
+  // Frequency bonus per normalized address
+  const freq = new Map<string, number>();
+  for (const c of candidates) freq.set(c.normLower, (freq.get(c.normLower) ?? 0) + 1);
+
+  const scored = candidates.map((c) => ({
+    c,
+    score: c.labelScore + Math.min(5, (freq.get(c.normLower) ?? 1) - 1),
+  }));
+
+  scored.sort((a, b) => b.score - a.score || a.c.index - b.c.index);
+  return normalizeAddress(scored[0].c.raw);
 }
 
 /** Match against a known builder list (longest-name-wins to avoid "Lennar" beating "Lennar Homes"-like substrings). */

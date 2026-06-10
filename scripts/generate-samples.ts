@@ -93,6 +93,19 @@ const SPECS: DocSpec[] = [
     title: '',
     noText: true,
   },
+  {
+    // Simulates the real-world failure mode: an office/title address appears
+    // BEFORE the property address. The new label-aware detector should still
+    // pick "124 Skyline Road" (labeled "Property:") rather than the title
+    // company's office address in the letterhead.
+    filename: 'skyline_with_letterhead.pdf',
+    title: 'Title Insurance',
+    address: '124 Skyline Road, Aurora, CO 80016',
+    builder: 'Dream Finder Homes',
+    closingDate: '04/15/2025',
+    extraBody:
+      'ABC Title Insurance Company\nOffice: 789 Corporate Park Drive, Denver, CO 80202\nAttn: Closing Department\n\nThis policy insures the property described below.',
+  },
 ];
 
 async function writeOne(spec: DocSpec): Promise<void> {
