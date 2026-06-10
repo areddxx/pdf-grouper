@@ -8,6 +8,7 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { ThemeToggle } from './components/ThemeToggle';
 import { CombineButton } from './components/CombineButton';
 import { Footer } from './components/Footer';
+import { ErrorSummary } from './components/ErrorSummary';
 import { Button } from './components/ui/button';
 import { runExtraction } from './workers/pdfWorkerClient';
 import { groupFiles } from './lib/grouping';
@@ -22,12 +23,24 @@ export default function App() {
   const startProgress = useStore((s) => s.startProgress);
   const setProgress = useStore((s) => s.setProgress);
   const markFileStatus = useStore((s) => s.markFileStatus);
+  const setFatalError = useStore((s) => s.setFatalError);
+  const addRejected = useStore((s) => s.addRejected);
   const reset = useStore((s) => s.reset);
 
   // Apply persisted theme on mount
   useEffect(() => {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');
   }, [settings.theme]);
+
+  // Listen for dropzone rejections (non-PDF files)
+  useEffect(() => {
+    function onRejected(e: Event) {
+      const names = (e as CustomEvent<string[]>).detail;
+      if (Array.isArray(names) && names.length > 0) addRejected(names);
+    }
+    window.addEventListener('pdfgrouper:rejected', onRejected as EventListener);
+    return () => window.removeEventListener('pdfgrouper:rejected', onRejected as EventListener);
+  }, [addRejected]);
 
   const groupCount = useMemo(() => groupFiles(files).groups.length, [files]);
 
@@ -60,6 +73,17 @@ export default function App() {
           });
           setProgress({ index: finished, slowPage: undefined });
         },
+        onWorkerError: (msg) => {
+          setFatalError(msg);
+          // mark every still-extracting file as failed so the UI is consistent
+          for (const f of added) {
+            markFileStatus(f.id, {
+              status: 'failed',
+              note: 'PDF processor was unavailable — see banner above.',
+            });
+          }
+          setPhase('review');
+        },
       }
     ).done.then(() => setPhase('review'));
   }
@@ -88,13 +112,10 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 space-y-6">
+        <ErrorSummary />
         {phase === 'idle' && <Dropzone onFiles={onFiles} />}
-        {phase === 'extracting' && (
-          <div className="space-y-6">
-            <ProcessingProgress />
-          </div>
-        )}
+        {phase === 'extracting' && <ProcessingProgress />}
         {(phase === 'review' || phase === 'combining') && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">

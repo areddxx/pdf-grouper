@@ -8,6 +8,8 @@ export interface ExtractionCallbacks {
   onFileStart?: (e: Extract<WorkerEvent, { type: 'file-start' }>) => void;
   onFileDone?: (e: Extract<WorkerEvent, { type: 'file-done' }>) => void;
   onPageSlow?: (e: Extract<WorkerEvent, { type: 'page-slow' }>) => void;
+  /** Worker itself failed to load / crashed — every file should be marked failed. */
+  onWorkerError?: (message: string) => void;
 }
 
 let activeWorker: Worker | null = null;
@@ -23,7 +25,14 @@ export function runExtraction(
     activeWorker = null;
   }
 
-  const worker = new Worker(new URL('./pdfWorker.ts', import.meta.url), { type: 'module' });
+  let worker: Worker;
+  try {
+    worker = new Worker(new URL('./pdfWorker.ts', import.meta.url), { type: 'module' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    cb.onWorkerError?.(`Failed to start PDF processor: ${message}`);
+    return { cancel: () => {}, done: Promise.resolve() };
+  }
   activeWorker = worker;
 
   const done = new Promise<void>((resolve) => {
@@ -43,6 +52,15 @@ export function runExtraction(
           resolve();
           break;
       }
+    };
+    worker.onerror = (ev) => {
+      const message = ev.message || 'Unknown worker error';
+      cb.onWorkerError?.(`PDF processor crashed: ${message}`);
+      resolve();
+    };
+    worker.onmessageerror = () => {
+      cb.onWorkerError?.('PDF processor sent malformed data.');
+      resolve();
     };
   });
 

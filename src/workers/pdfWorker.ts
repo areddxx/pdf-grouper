@@ -87,7 +87,7 @@ self.addEventListener('message', async (e: MessageEvent<WorkerMessage>) => {
           groupKey: '',
           pagesScanned: 0,
           pageCount: 0,
-          note: `extraction failed: ${err instanceof Error ? err.message : String(err)}`,
+          note: classifyError(err, f),
         });
       }
     }
@@ -99,6 +99,33 @@ self.addEventListener('message', async (e: MessageEvent<WorkerMessage>) => {
 
 function post(msg: WorkerEvent) {
   (self as DedicatedWorkerGlobalScope).postMessage(msg);
+}
+
+/** Convert a thrown pdfjs error into a user-readable explanation. */
+function classifyError(err: unknown, f: WorkerInputFile): string {
+  const e = err as { name?: string; message?: string };
+  const name = e?.name ?? '';
+  const msg = e?.message ?? String(err);
+
+  if (name === 'PasswordException' || /password/i.test(msg)) {
+    return 'Password-protected PDF — remove the password and re-upload.';
+  }
+  if (name === 'InvalidPDFException' || /invalid pdf/i.test(msg)) {
+    return 'File is not a valid PDF (possibly corrupted or renamed).';
+  }
+  if (name === 'MissingPDFException') {
+    return 'File could not be read from disk.';
+  }
+  if (/structure/i.test(msg) || /xref/i.test(msg)) {
+    return `PDF structure error: ${msg}. Try opening it in Preview and re-saving.`;
+  }
+  if (f.size === 0) {
+    return 'File is empty (0 bytes).';
+  }
+  if (f.size > 200 * 1024 * 1024) {
+    return `File is very large (${(f.size / 1024 / 1024).toFixed(0)} MB) — browser may have run out of memory.`;
+  }
+  return `Couldn't read this PDF — ${msg}`;
 }
 
 async function extractFromFile(

@@ -49,6 +49,10 @@ interface Store {
   progress: ProgressState;
   combineProgress: CombineProgress | null;
   settings: SettingsState;
+  /** Top-level fatal error (e.g. worker failed to load). One at a time. */
+  fatalError: string | null;
+  /** Names of non-PDF files the user tried to drop, surfaced in the banner. */
+  rejected: string[];
 
   // file lifecycle
   addFiles: (raw: File[]) => PdfFile[];
@@ -56,6 +60,9 @@ interface Store {
   startProgress: (total: number) => void;
   setProgress: (p: Partial<ProgressState>) => void;
   markFileStatus: (id: string, patch: Partial<PdfFile>) => void;
+  setFatalError: (msg: string | null) => void;
+  addRejected: (names: string[]) => void;
+  clearRejected: () => void;
   reset: () => void;
 
   // edits
@@ -77,6 +84,8 @@ export const useStore = create<Store>((set, get) => ({
   progress: { index: 0, total: 0, currentName: '' },
   combineProgress: null,
   settings: loadSettings(),
+  fatalError: null,
+  rejected: [],
 
   addFiles: (raw) => {
     const onlyPdf = raw.filter((f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
@@ -113,7 +122,13 @@ export const useStore = create<Store>((set, get) => ({
       files: [],
       progress: { index: 0, total: 0, currentName: '' },
       combineProgress: null,
+      fatalError: null,
+      rejected: [],
     }),
+
+  setFatalError: (msg) => set({ fatalError: msg }),
+  addRejected: (names) => set((s) => ({ rejected: [...s.rejected, ...names] })),
+  clearRejected: () => set({ rejected: [] }),
 
   editMeta: (id, patch) =>
     set((s) => ({

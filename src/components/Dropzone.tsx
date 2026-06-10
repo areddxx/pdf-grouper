@@ -16,7 +16,15 @@ export function Dropzone({ onFiles, disabled }: Props) {
     accept: { 'application/pdf': ['.pdf'] },
     multiple: true,
     disabled,
-    onDrop: (accepted) => {
+    onDrop: (accepted, rejections) => {
+      if (rejections.length > 0) {
+        // surface rejected (non-PDF) files via a custom event the App listens for
+        window.dispatchEvent(
+          new CustomEvent<string[]>('pdfgrouper:rejected', {
+            detail: rejections.map((r) => r.file.name),
+          })
+        );
+      }
       if (accepted.length) onFiles(accepted);
     },
   });

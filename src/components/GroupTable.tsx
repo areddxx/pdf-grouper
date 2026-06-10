@@ -219,9 +219,10 @@ function DocTypeSelect({ value, onChange }: { value: string; onChange: (v: strin
 }
 
 function FileStatusBadge({ file }: { file: PdfFile }) {
-  if (file.status === 'no-text') return <Badge variant="destructive" className="text-[10px]">no text — needs OCR</Badge>;
-  if (file.status === 'failed') return <Badge variant="destructive" className="text-[10px]">extraction failed</Badge>;
-  if (file.status === 'partial') return <Badge variant="warning" className="text-[10px]">partial</Badge>;
+  const tip = file.note ?? '';
+  if (file.status === 'no-text') return <Badge variant="destructive" className="text-[10px]" title={tip}>no text — needs OCR</Badge>;
+  if (file.status === 'failed') return <Badge variant="destructive" className="text-[10px]" title={tip}>extraction failed</Badge>;
+  if (file.status === 'partial') return <Badge variant="warning" className="text-[10px]" title={tip}>partial</Badge>;
   return null;
 }
 
